@@ -1,0 +1,37 @@
+name: Accept retry validation
+on:
+  push:
+    branches: [ci/accept-retry-validation]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    # Ubuntu 26's GCC fails in unchanged RocksDB headers (upstream #1269).
+    # Use a compatible compiler without patching dependencies or suppressing lint.
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        args: ['--locked --no-default-features', '--locked', '--locked --features metrics_process']
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: 06ca5f007e545893e73b32c76a24fe601efb7d69
+      - name: Verify production head
+        run: test "$(git rev-parse HEAD)" = 06ca5f007e545893e73b32c76a24fe601efb7d69
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - name: Dependencies
+        run: sudo apt-get update -qq && sudo apt-get install -y build-essential libclang-dev
+      - name: Toolchain
+        run: rustc --version && cargo --version && c++ --version
+      - name: Format
+        run: cargo fmt --all -- --check
+      - name: Build
+        run: cargo build ${{ matrix.args }} --all
+      - name: Test
+        run: cargo test ${{ matrix.args }} --all
+      - name: Clippy
+        run: cargo clippy ${{ matrix.args }} --all-targets -- -D warnings
